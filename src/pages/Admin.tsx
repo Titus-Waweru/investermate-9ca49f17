@@ -3,12 +3,14 @@ import { motion } from "framer-motion";
 import { 
   Users, Wallet, Phone, CheckCircle, XCircle, 
   Plus, AlertTriangle, TrendingUp, TrendingDown,
-  Eye, Search, ArrowLeft, Shield
+  Search, ArrowLeft, Shield, MessageSquare, BarChart3
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { 
   useIsAdmin, 
   usePendingDeposits, 
@@ -22,9 +24,13 @@ import {
   useTogglePaymentNumber,
   usePlatformStats
 } from "@/hooks/useAdmin";
+import {
+  useAllEmergencyMessages,
+  useCreateEmergencyMessage,
+  useToggleEmergencyMessage,
+} from "@/hooks/useEmergencyMessages";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
-import logo from "@/assets/logo.png";
 import {
   Dialog,
   DialogContent,
@@ -41,11 +47,14 @@ export default function Admin() {
   const { data: users } = useAllUsers();
   const { data: paymentNumbers } = useAllPaymentNumbers();
   const { data: stats } = usePlatformStats();
+  const { data: emergencyMessages } = useAllEmergencyMessages();
   const approveDeposit = useApproveDeposit();
   const processWithdrawal = useProcessWithdrawal();
   const updateBalance = useUpdateUserBalance();
   const addNumber = useAddPaymentNumber();
   const toggleNumber = useTogglePaymentNumber();
+  const createEmergency = useCreateEmergencyMessage();
+  const toggleEmergency = useToggleEmergencyMessage();
   const { toast } = useToast();
 
   const [searchUser, setSearchUser] = useState("");
@@ -54,6 +63,9 @@ export default function Admin() {
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [newEmergencyTitle, setNewEmergencyTitle] = useState("");
+  const [newEmergencyMessage, setNewEmergencyMessage] = useState("");
+  const [newEmergencyImage, setNewEmergencyImage] = useState("");
 
   if (checkingAdmin) {
     return (
@@ -68,7 +80,15 @@ export default function Admin() {
   }
 
   const pendingDeposits = deposits?.filter((d) => d.status === "pending") || [];
+  const approvedDeposits = deposits?.filter((d) => d.status === "approved") || [];
   const pendingWithdrawals = withdrawals?.filter((w) => w.status === "pending") || [];
+  const completedWithdrawals = withdrawals?.filter((w) => w.status === "completed") || [];
+
+  // Calculate percentages
+  const totalDeposits = deposits?.length || 0;
+  const depositApprovalRate = totalDeposits > 0 ? (approvedDeposits.length / totalDeposits) * 100 : 0;
+  const totalWithdrawals = withdrawals?.length || 0;
+  const withdrawalCompletionRate = totalWithdrawals > 0 ? (completedWithdrawals.length / totalWithdrawals) * 100 : 0;
 
   const filteredUsers = users?.filter(
     (u) =>
@@ -126,6 +146,23 @@ export default function Admin() {
       setAdjustReason("");
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to adjust balance" });
+    }
+  };
+
+  const handleCreateEmergency = async () => {
+    if (!newEmergencyTitle || !newEmergencyMessage) return;
+    try {
+      await createEmergency.mutateAsync({
+        title: newEmergencyTitle,
+        message: newEmergencyMessage,
+        imageUrl: newEmergencyImage || undefined,
+      });
+      toast({ title: "Emergency message created", description: "Message is now visible to all users" });
+      setNewEmergencyTitle("");
+      setNewEmergencyMessage("");
+      setNewEmergencyImage("");
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to create message" });
     }
   };
 
@@ -201,6 +238,47 @@ export default function Admin() {
           </motion.div>
         </div>
 
+        {/* Percentage Bars */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="glass-card p-4"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-profit" />
+                <span className="text-sm font-medium">Deposit Approval Rate</span>
+              </div>
+              <span className="text-sm font-bold text-profit">{depositApprovalRate.toFixed(0)}%</span>
+            </div>
+            <Progress value={depositApprovalRate} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-1">
+              {approvedDeposits.length} approved / {totalDeposits} total
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="glass-card p-4"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-trust" />
+                <span className="text-sm font-medium">Withdrawal Completion Rate</span>
+              </div>
+              <span className="text-sm font-bold text-trust">{withdrawalCompletionRate.toFixed(0)}%</span>
+            </div>
+            <Progress value={withdrawalCompletionRate} className="h-2" />
+            <p className="text-xs text-muted-foreground mt-1">
+              {completedWithdrawals.length} completed / {totalWithdrawals} total
+            </p>
+          </motion.div>
+        </div>
+
         {/* Alert for pending */}
         {(pendingDeposits.length > 0 || pendingWithdrawals.length > 0) && (
           <motion.div
@@ -219,10 +297,11 @@ export default function Admin() {
         )}
 
         <Tabs defaultValue="deposits" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="deposits">Deposits</TabsTrigger>
             <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="messages">Messages</TabsTrigger>
             <TabsTrigger value="numbers">Numbers</TabsTrigger>
           </TabsList>
 
@@ -236,6 +315,9 @@ export default function Admin() {
                     <p className="font-semibold">KES {Number(deposit.amount).toLocaleString()}</p>
                     <p className="text-sm text-muted-foreground">
                       {deposit.profiles?.full_name || deposit.profiles?.email || "Unknown"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      User ID: {deposit.user_id.slice(0, 8)}...
                     </p>
                     <p className="text-xs text-muted-foreground">
                       From: {deposit.phone_number} • {deposit.mpesa_code || "No code"}
@@ -276,6 +358,9 @@ export default function Admin() {
                     <p className="font-semibold">KES {Number(withdrawal.amount).toLocaleString()}</p>
                     <p className="text-sm text-muted-foreground">
                       {withdrawal.profiles?.full_name || withdrawal.profiles?.email || "Unknown"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      User ID: {withdrawal.user_id.slice(0, 8)}...
                     </p>
                     <p className="text-xs text-muted-foreground">To: {withdrawal.phone_number}</p>
                     <p className="text-xs text-muted-foreground">
@@ -321,6 +406,7 @@ export default function Admin() {
                   <p className="font-semibold">{user.full_name || "No name"}</p>
                   <p className="text-sm text-muted-foreground">{user.email}</p>
                   <p className="text-xs text-muted-foreground">{user.phone || "No phone"}</p>
+                  <p className="text-xs text-muted-foreground">ID: {user.user_id.slice(0, 8)}...</p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold text-profit">
@@ -374,6 +460,72 @@ export default function Admin() {
                       </div>
                     </DialogContent>
                   </Dialog>
+                </div>
+              </div>
+            ))}
+          </TabsContent>
+
+          <TabsContent value="messages" className="space-y-4">
+            <div className="glass-card p-4 space-y-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Create Emergency Message
+              </h3>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Title"
+                  value={newEmergencyTitle}
+                  onChange={(e) => setNewEmergencyTitle(e.target.value)}
+                />
+                <Textarea
+                  placeholder="Message content..."
+                  value={newEmergencyMessage}
+                  onChange={(e) => setNewEmergencyMessage(e.target.value)}
+                  rows={3}
+                />
+                <Input
+                  placeholder="Image URL (optional)"
+                  value={newEmergencyImage}
+                  onChange={(e) => setNewEmergencyImage(e.target.value)}
+                />
+                <Button 
+                  onClick={handleCreateEmergency} 
+                  disabled={!newEmergencyTitle || !newEmergencyMessage || createEmergency.isPending}
+                  className="w-full"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Publish Message
+                </Button>
+              </div>
+            </div>
+
+            {emergencyMessages?.map((msg: any) => (
+              <div key={msg.id} className="glass-card p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`w-2 h-2 rounded-full ${msg.is_active ? 'bg-profit' : 'bg-muted'}`} />
+                      <h4 className="font-semibold">{msg.title}</h4>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{msg.message}</p>
+                    {msg.image_url && (
+                      <img 
+                        src={msg.image_url} 
+                        alt={msg.title} 
+                        className="mt-2 rounded-lg max-h-20 object-cover"
+                      />
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={msg.is_active ? "default" : "outline"}
+                    onClick={() => toggleEmergency.mutate({ id: msg.id, isActive: !msg.is_active })}
+                  >
+                    {msg.is_active ? "Active" : "Inactive"}
+                  </Button>
                 </div>
               </div>
             ))}

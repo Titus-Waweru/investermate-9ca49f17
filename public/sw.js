@@ -1,7 +1,10 @@
-const CACHE_NAME = 'investermate-v1';
+const CACHE_NAME = 'investermate-v2';
 const urlsToCache = [
   '/',
   '/index.html',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -13,10 +16,17 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => response || fetch(event.request))
-  );
+  // Network first for API calls, cache first for assets
+  if (event.request.url.includes('/api/') || event.request.url.includes('supabase')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    );
+  } else {
+    event.respondWith(
+      caches.match(event.request)
+        .then((response) => response || fetch(event.request))
+    );
+  }
 });
 
 self.addEventListener('activate', (event) => {

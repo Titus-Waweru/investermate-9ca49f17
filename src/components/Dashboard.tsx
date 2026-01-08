@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { TrendingUp, Package, Clock, Award, LogOut, Flame, Gift } from "lucide-react";
+import { TrendingUp, Package, Clock, Award, LogOut, Flame } from "lucide-react";
 import { StatsCard } from "./ui/StatsCard";
 import { ProductCard } from "./ui/ProductCard";
 import { NoticeBoard } from "./ui/NoticeBoard";
@@ -7,6 +7,7 @@ import { WalletCard } from "./ui/WalletCard";
 import { BottomNav } from "./ui/BottomNav";
 import { LiveActivityFeed } from "./LiveActivityFeed";
 import { InstallPrompt } from "./InstallPrompt";
+import { EmergencyMessages } from "./EmergencyMessages";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useWallet } from "@/hooks/useWallet";
@@ -21,6 +22,8 @@ import logo from "@/assets/logo.png";
 import { useEffect } from "react";
 import { Link } from "react-router-dom";
 
+import { useProcessReferral } from "@/hooks/useProcessReferral";
+
 export const Dashboard = () => {
   const { user, signOut } = useAuth();
   const { data: profile, isLoading: profileLoading } = useProfile();
@@ -31,11 +34,20 @@ export const Dashboard = () => {
   const { data: streak } = useUserStreak();
   const { data: level } = useUserLevel();
   const { mutate: updateStreak } = useUpdateStreak();
+  const { mutateAsync: processReferral } = useProcessReferral();
 
-  // Update streak on dashboard load (only once per session)
+  // Update streak and process pending referral on dashboard load
   useEffect(() => {
     if (user && streak !== undefined) {
       updateStreak();
+      
+      // Process pending referral code if exists
+      const pendingReferralCode = localStorage.getItem("pendingReferralCode");
+      if (pendingReferralCode) {
+        processReferral({ referralCode: pendingReferralCode, newUserId: user.id })
+          .then(() => localStorage.removeItem("pendingReferralCode"))
+          .catch(() => localStorage.removeItem("pendingReferralCode"));
+      }
     }
   }, [user?.id]);
 
@@ -189,6 +201,9 @@ export const Dashboard = () => {
             delay={0.4}
           />
         </div>
+
+        {/* Emergency Messages - Always at top */}
+        <EmergencyMessages />
 
         {/* Notice Board */}
         {noticesLoading ? (
