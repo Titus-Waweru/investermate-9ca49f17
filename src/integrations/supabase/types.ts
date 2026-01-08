@@ -95,6 +95,39 @@ export type Database = {
         }
         Relationships: []
       }
+      emergency_messages: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          message: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          message: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          message?: string
+          title?: string
+        }
+        Relationships: []
+      }
       investments: {
         Row: {
           amount: number

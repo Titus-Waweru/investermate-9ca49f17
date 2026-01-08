@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { useProcessReferral } from "@/hooks/useProcessReferral";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import logo from "@/assets/logo.png";
@@ -15,6 +16,9 @@ const emailSchema = z.string().email("Invalid email address");
 const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 
 export default function Auth() {
+  const [searchParams] = useSearchParams();
+  const referralCode = searchParams.get("ref");
+  
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,9 +27,17 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({});
 
-  const { signIn, signUp, resetPassword } = useAuth();
+  const { signIn, signUp, resetPassword, user } = useAuth();
+  const { mutateAsync: processReferral } = useProcessReferral();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // If user is already logged in, redirect to home
+  useEffect(() => {
+    if (user) {
+      navigate("/");
+    }
+  }, [user, navigate]);
 
   const validateForm = () => {
     const newErrors: { email?: string; password?: string; name?: string } = {};
@@ -80,7 +92,14 @@ export default function Auth() {
             toast({ variant: "destructive", title: "Signup failed", description: error.message });
           }
         } else {
-          toast({ title: "Account created!", description: "You can now log in" });
+          toast({ title: "Account created!", description: referralCode ? "Welcome! Your referrer received KES 100." : "You can now log in" });
+          
+          // Process referral if there's a referral code (will be processed after user is confirmed)
+          if (referralCode) {
+            // Store referral code for processing after first login
+            localStorage.setItem("pendingReferralCode", referralCode);
+          }
+          
           navigate("/");
         }
       } else if (mode === "forgot") {

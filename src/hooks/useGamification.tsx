@@ -433,6 +433,7 @@ export const useRecordSpin = () => {
     mutationFn: async ({ prizeType, prizeValue }: { prizeType: string; prizeValue: number }) => {
       if (!user) throw new Error("Not authenticated");
 
+      // Record the spin
       const { data, error } = await supabase
         .from("spin_history")
         .insert({
@@ -445,10 +446,37 @@ export const useRecordSpin = () => {
         .single();
 
       if (error) throw error;
+
+      // If user won money, add it to their wallet
+      if (prizeValue > 0) {
+        const { data: wallet, error: walletError } = await supabase
+          .from("wallets")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        if (!walletError && wallet) {
+          await supabase
+            .from("wallets")
+            .update({ balance: Number(wallet.balance) + prizeValue })
+            .eq("user_id", user.id);
+
+          // Create transaction record
+          await supabase.from("transactions").insert({
+            user_id: user.id,
+            type: "reward",
+            amount: prizeValue,
+            description: `Wheel spin reward - Won KES ${prizeValue}`,
+            status: "completed",
+          });
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["today-spins", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["wallet", user?.id] });
     },
   });
 };

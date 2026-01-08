@@ -6,15 +6,15 @@ import { useTodaySpins, useRecordSpin } from "@/hooks/useGamification";
 import { useToast } from "@/hooks/use-toast";
 import confetti from "canvas-confetti";
 
+// Max win per spin is KES 80
 const PRIZES = [
-  { label: "KES 10", value: 10, color: "from-emerald-500 to-emerald-600", probability: 0.35 },
-  { label: "KES 50", value: 50, color: "from-blue-500 to-blue-600", probability: 0.25 },
-  { label: "KES 100", value: 100, color: "from-purple-500 to-purple-600", probability: 0.20 },
-  { label: "2x Returns", value: 0, color: "from-amber-500 to-amber-600", probability: 0.10, special: true },
-  { label: "KES 500", value: 500, color: "from-pink-500 to-pink-600", probability: 0.07 },
-  { label: "KES 1,000", value: 1000, color: "from-red-500 to-red-600", probability: 0.025 },
-  { label: "JACKPOT!", value: 10000, color: "from-yellow-400 to-amber-500", probability: 0.005, jackpot: true },
-  { label: "Try Again", value: 0, color: "from-gray-500 to-gray-600", probability: 0.0 },
+  { label: "KES 5", value: 5, color: "from-emerald-500 to-emerald-600", probability: 0.30 },
+  { label: "KES 10", value: 10, color: "from-blue-500 to-blue-600", probability: 0.25 },
+  { label: "KES 20", value: 20, color: "from-purple-500 to-purple-600", probability: 0.20 },
+  { label: "KES 40", value: 40, color: "from-amber-500 to-amber-600", probability: 0.12 },
+  { label: "KES 60", value: 60, color: "from-pink-500 to-pink-600", probability: 0.08 },
+  { label: "KES 80", value: 80, color: "from-yellow-400 to-amber-500", probability: 0.03, jackpot: true },
+  { label: "Try Again", value: 0, color: "from-gray-500 to-gray-600", probability: 0.02 },
 ];
 
 export const SpinWheel = () => {
@@ -225,7 +225,7 @@ export const SpinWheel = () => {
                 )}
               </motion.div>
               <h3 className="text-xl font-bold mb-2">
-                {prize.value > 0 ? "You Won!" : prize.special ? "Bonus!" : "Better luck next time!"}
+                {prize.value > 0 ? "You Won!" : "Better luck next time!"}
               </h3>
               <p className="text-2xl font-display font-bold gradient-text mb-4">
                 {prize.label}
