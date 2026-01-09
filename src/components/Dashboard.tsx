@@ -78,7 +78,7 @@ export const Dashboard = () => {
     title: notice.title,
     message: notice.message,
     date: formatDistanceToNow(new Date(notice.created_at), { addSuffix: true }),
-    type: notice.type,
+    type: (notice.type === "important" || notice.type === "update" ? notice.type : "info") as "info" | "important" | "update",
   })) || [];
 
   // Format products for component

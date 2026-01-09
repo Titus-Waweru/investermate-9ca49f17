@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/lib/api";
 import { useAuth } from "./useAuth";
 
 export interface Transaction {
@@ -20,16 +20,8 @@ export const useTransactions = () => {
     queryKey: ["transactions", user?.id],
     queryFn: async () => {
       if (!user) return [];
-
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      return data as Transaction[];
+      const { transactions } = await api.transactions.list();
+      return transactions as Transaction[];
     },
     enabled: !!user,
   });
@@ -40,20 +32,9 @@ export const useCreateTransaction = () => {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (transaction: Omit<Transaction, "id" | "user_id" | "created_at">) => {
-      if (!user) throw new Error("Not authenticated");
-
-      const { data, error } = await supabase
-        .from("transactions")
-        .insert({
-          ...transaction,
-          user_id: user.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+    mutationFn: async (transaction: { type: string; amount: number; description?: string; reference_id?: string; status?: string }) => {
+      const { transaction: created } = await api.transactions.create(transaction);
+      return created;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["transactions", user?.id] });

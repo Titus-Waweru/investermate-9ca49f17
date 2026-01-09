@@ -62,12 +62,17 @@ class ApiClient {
   // Wallet endpoints
   wallet = {
     get: () => this.request<{ wallet: Wallet | null }>("wallet", "get", {}),
+    update: (updates: { balance?: number; total_invested?: number; pending_returns?: number }) =>
+      this.request<{ wallet: Wallet }>("wallet", "update", { updates }),
   };
 
   // Transactions endpoints
   transactions = {
     list: () => this.request<{ transactions: Transaction[] }>("transactions", "list", {}),
+    create: (transaction: { type: string; amount: number; description?: string; reference_id?: string; status?: string }) =>
+      this.request<{ transaction: Transaction }>("transactions", "create", { transaction }),
   };
+
 
   // Deposits endpoints
   deposits = {
@@ -402,6 +407,7 @@ export interface Referral {
   reward_amount: number | null;
   created_at: string;
   referred?: { full_name: string | null; email: string | null };
+  referred_profile?: { full_name: string | null; email: string | null; created_at?: string };
 }
 
 export interface PlatformStats {

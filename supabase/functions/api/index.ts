@@ -131,7 +131,7 @@ async function handleProfile(
 async function handleWallet(
   _req: Request,
   action: string,
-  _body: Record<string, unknown>,
+  body: Record<string, unknown>,
   userId: string
 ): Promise<Response> {
   switch (action) {
@@ -144,6 +144,17 @@ async function handleWallet(
       if (error) return jsonError(error.message, 400);
       return jsonSuccess({ wallet: data });
     }
+    case "update": {
+      const updates = body.updates as Record<string, unknown>;
+      const { data, error } = await adminClient
+        .from("wallets")
+        .update(updates)
+        .eq("user_id", userId)
+        .select()
+        .single();
+      if (error) return jsonError(error.message, 400);
+      return jsonSuccess({ wallet: data });
+    }
     default:
       return jsonError("Invalid wallet action", 400);
   }
@@ -152,7 +163,7 @@ async function handleWallet(
 async function handleTransactions(
   _req: Request,
   action: string,
-  _body: Record<string, unknown>,
+  body: Record<string, unknown>,
   userId: string
 ): Promise<Response> {
   switch (action) {
@@ -164,6 +175,29 @@ async function handleTransactions(
         .order("created_at", { ascending: false });
       if (error) return jsonError(error.message, 400);
       return jsonSuccess({ transactions: data });
+    }
+    case "create": {
+      const transaction = body.transaction as {
+        type: string;
+        amount: number;
+        description?: string;
+        reference_id?: string;
+        status?: string;
+      };
+      const { data, error } = await adminClient
+        .from("transactions")
+        .insert({
+          user_id: userId,
+          type: transaction.type,
+          amount: transaction.amount,
+          description: transaction.description || null,
+          reference_id: transaction.reference_id || null,
+          status: transaction.status || "completed",
+        })
+        .select()
+        .single();
+      if (error) return jsonError(error.message, 400);
+      return jsonSuccess({ transaction: data });
     }
     default:
       return jsonError("Invalid transactions action", 400);
