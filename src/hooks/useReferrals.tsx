@@ -1,44 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { api, Referral } from "@/lib/api";
 import { useAuth } from "./useAuth";
-import { useProfile } from "./useProfile";
 
-export interface Referral {
-  id: string;
-  referrer_id: string;
-  referred_id: string;
-  reward_amount: number | null;
-  status: string;
-  created_at: string;
-  referred_profile?: {
-    full_name: string | null;
-    email: string | null;
-    created_at: string;
-  };
-}
+export type { Referral };
 
 export const useReferrals = () => {
   const { user } = useAuth();
-  const { data: profile } = useProfile();
 
   return useQuery({
-    queryKey: ["referrals", profile?.id],
+    queryKey: ["referrals", user?.id],
     queryFn: async () => {
-      if (!profile) return [];
-
-      const { data, error } = await supabase
-        .from("referrals")
-        .select(`
-          *,
-          referred_profile:profiles!referrals_referred_id_fkey(full_name, email, created_at)
-        `)
-        .eq("referrer_id", profile.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data as Referral[];
+      if (!user) return [];
+      const { referrals } = await api.referrals.list();
+      return referrals;
     },
-    enabled: !!profile,
+    enabled: !!user,
   });
 };
 
