@@ -7,7 +7,7 @@ import {
   Newspaper, Bell, PauseCircle, PlayCircle, Image, Upload,
   Trash2, Award, ChevronLeft, ChevronRight, Timer, Megaphone,
   MessageCircle, RefreshCw, Eye, AlertOctagon, Globe, Monitor,
-  Package
+  Package, UserCog
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,13 @@ import {
   useToggleProduct,
 } from "@/hooks/useAdmin";
 import {
+  useAllManagers,
+  useAddManager,
+  useToggleManager,
+  useDeleteManager,
+  useReassignManager,
+} from "@/hooks/usePersonalManager";
+import {
   useAllEmergencyMessages,
   useCreateEmergencyMessage,
   useToggleEmergencyMessage,
@@ -85,6 +92,7 @@ export default function Admin() {
   const { data: platformSettings } = usePlatformSettings();
   const { data: suspiciousActivities } = useSuspiciousActivities();
   const { data: allProducts } = useAllProducts();
+  const { data: allManagers } = useAllManagers();
   const approveDeposit = useApproveDeposit();
   const processWithdrawal = useProcessWithdrawal();
   const updateBalance = useUpdateUserBalance();
@@ -106,6 +114,10 @@ export default function Admin() {
   const resetAllData = useResetAllData();
   const resolveActivity = useResolveSuspiciousActivity();
   const toggleProduct = useToggleProduct();
+  const addManager = useAddManager();
+  const toggleManager = useToggleManager();
+  const deleteManager = useDeleteManager();
+  const reassignManager = useReassignManager();
   const { toast } = useToast();
 
   const [searchUser, setSearchUser] = useState("");
@@ -147,6 +159,11 @@ export default function Admin() {
   
   // WhatsApp support number state
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  
+  // Personal manager state
+  const [newManagerName, setNewManagerName] = useState("");
+  const [newManagerWhatsApp, setNewManagerWhatsApp] = useState("");
+  const [newManagerMessage, setNewManagerMessage] = useState("");
 
   // Get freeze status
   const depositsFrozen = platformSettings?.find(s => s.key === "deposits_frozen")?.value?.frozen ?? false;
@@ -783,11 +800,12 @@ export default function Admin() {
         )}
 
         <Tabs defaultValue="deposits" className="w-full">
-          <TabsList className="grid w-full grid-cols-9 text-xs">
+          <TabsList className="grid w-full grid-cols-10 text-xs">
             <TabsTrigger value="deposits">Deposits</TabsTrigger>
             <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
+            <TabsTrigger value="managers">Managers</TabsTrigger>
             <TabsTrigger value="messages">Alerts</TabsTrigger>
             <TabsTrigger value="news">News</TabsTrigger>
             <TabsTrigger value="notices">Notices</TabsTrigger>
@@ -1378,6 +1396,127 @@ export default function Admin() {
                         }}
                         disabled={toggleProduct.isPending}
                       />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </TabsContent>
+
+          <TabsContent value="managers" className="space-y-4">
+            <div className="glass-card p-4">
+              <h3 className="font-semibold flex items-center gap-2 mb-4">
+                <UserCog className="w-5 h-5 text-primary" />
+                Personal Manager Management
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Add personal managers that will be auto-assigned to new users. The system distributes new users evenly across active managers.
+              </p>
+              
+              {/* Add new manager */}
+              <div className="space-y-3 p-3 rounded-lg bg-muted/30 mb-4">
+                <Input
+                  placeholder="Manager name"
+                  value={newManagerName}
+                  onChange={(e) => setNewManagerName(e.target.value)}
+                />
+                <Input
+                  placeholder="WhatsApp number (+254...)"
+                  value={newManagerWhatsApp}
+                  onChange={(e) => setNewManagerWhatsApp(e.target.value)}
+                />
+                <Input
+                  placeholder="Welcome message (optional)"
+                  value={newManagerMessage}
+                  onChange={(e) => setNewManagerMessage(e.target.value)}
+                />
+                <Button
+                  onClick={() => {
+                    if (!newManagerName || !newManagerWhatsApp) return;
+                    addManager.mutate({
+                      name: newManagerName,
+                      whatsappNumber: newManagerWhatsApp,
+                      welcomeMessage: newManagerMessage || undefined,
+                    }, {
+                      onSuccess: () => {
+                        toast({ title: "Manager added", description: "New personal manager has been created" });
+                        setNewManagerName("");
+                        setNewManagerWhatsApp("");
+                        setNewManagerMessage("");
+                      },
+                      onError: () => {
+                        toast({ variant: "destructive", title: "Error", description: "Failed to add manager" });
+                      },
+                    });
+                  }}
+                  disabled={!newManagerName || !newManagerWhatsApp || addManager.isPending}
+                  className="w-full"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Manager
+                </Button>
+              </div>
+            </div>
+
+            {allManagers?.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No managers found. Add a manager to get started.</p>
+            ) : (
+              allManagers?.map((manager: any) => (
+                <div key={manager.id} className={`glass-card p-4 ${!manager.is_active ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`w-2 h-2 rounded-full ${manager.is_active ? 'bg-profit' : 'bg-muted'}`} />
+                        <h4 className="font-semibold">{manager.name}</h4>
+                        <Badge variant="outline">{manager.assigned_count} users</Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {manager.whatsapp_number}
+                        </span>
+                        {manager.welcome_message && (
+                          <span className="truncate max-w-48">{manager.welcome_message}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs ${manager.is_active ? 'text-profit' : 'text-muted-foreground'}`}>
+                        {manager.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                      <Switch
+                        checked={manager.is_active}
+                        onCheckedChange={(checked) => {
+                          toggleManager.mutate({ id: manager.id, isActive: checked }, {
+                            onSuccess: () => {
+                              toast({
+                                title: checked ? "Manager activated" : "Manager deactivated",
+                                description: checked ? "Manager will be assigned to new users" : "Manager will not be assigned to new users",
+                              });
+                            },
+                          });
+                        }}
+                        disabled={toggleManager.isPending}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm("Are you sure you want to delete this manager?")) {
+                            deleteManager.mutate(manager.id, {
+                              onSuccess: () => {
+                                toast({ title: "Manager deleted" });
+                              },
+                              onError: () => {
+                                toast({ variant: "destructive", title: "Error", description: "Cannot delete manager with assigned users" });
+                              },
+                            });
+                          }
+                        }}
+                        disabled={deleteManager.isPending}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
                     </div>
                   </div>
                 </div>

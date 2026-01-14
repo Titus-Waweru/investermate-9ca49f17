@@ -212,6 +212,40 @@ async function handleAuth(
         },
       });
       if (error) return jsonError(error.message, 400);
+      
+      // Auto-assign a personal manager to new user (balanced distribution)
+      if (data.user) {
+        try {
+          // Get active manager with lowest assigned count
+          const { data: managers } = await adminClient
+            .from("personal_managers")
+            .select("id, assigned_count")
+            .eq("is_active", true)
+            .order("assigned_count", { ascending: true })
+            .limit(1);
+          
+          if (managers && managers.length > 0) {
+            const selectedManager = managers[0];
+            
+            // Update user's profile with assigned manager
+            await adminClient
+              .from("profiles")
+              .update({ assigned_manager_id: selectedManager.id })
+              .eq("user_id", data.user.id);
+            
+            // Increment manager's assigned count
+            await adminClient
+              .from("personal_managers")
+              .update({ assigned_count: selectedManager.assigned_count + 1 })
+              .eq("id", selectedManager.id);
+            
+            console.log(`Assigned manager ${selectedManager.id} to new user ${data.user.id}`);
+          }
+        } catch (managerError) {
+          console.error("Failed to auto-assign manager:", managerError);
+        }
+      }
+      
       return jsonSuccess({ user: data.user, session: data.session });
     }
     case "signIn": {
@@ -1299,6 +1333,41 @@ async function handleReferrals(
   }
 }
 
+// Personal managers handler
+async function handleManagers(
+  _req: Request,
+  action: string,
+  _body: Record<string, unknown>,
+  userId: string
+): Promise<Response> {
+  switch (action) {
+    case "getAssigned": {
+      // Get user's profile to find assigned manager
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("assigned_manager_id")
+        .eq("user_id", userId)
+        .single();
+      
+      if (!profile?.assigned_manager_id) {
+        return jsonSuccess({ manager: null });
+      }
+      
+      const { data: manager, error } = await adminClient
+        .from("personal_managers")
+        .select("*")
+        .eq("id", profile.assigned_manager_id)
+        .eq("is_active", true)
+        .single();
+      
+      if (error) return jsonSuccess({ manager: null });
+      return jsonSuccess({ manager });
+    }
+    default:
+      return jsonError("Invalid managers action", 400);
+  }
+}
+
 // Admin handlers
 async function handleAdmin(
   _req: Request,
@@ -2031,6 +2100,108 @@ async function handleAdmin(
       
       return jsonSuccess({ success: true });
     }
+    case "getAllManagers": {
+      const { data, error } = await adminClient
+        .from("personal_managers")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) return jsonError(error.message, 400);
+      return jsonSuccess({ managers: data });
+    }
+    case "addManager": {
+      const { name, whatsappNumber, welcomeMessage } = body as { 
+        name: string; 
+        whatsappNumber: string; 
+        welcomeMessage?: string;
+      };
+      const { error } = await adminClient.from("personal_managers").insert({
+        name,
+        whatsapp_number: whatsappNumber,
+        welcome_message: welcomeMessage || null,
+      });
+      if (error) return jsonError(error.message, 400);
+      
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: adminId,
+        action: "add_manager",
+        target_table: "personal_managers",
+        details: { name, whatsappNumber },
+      });
+      
+      return jsonSuccess({ success: true });
+    }
+    case "toggleManager": {
+      const { id, isActive } = body as { id: string; isActive: boolean };
+      const { error } = await adminClient
+        .from("personal_managers")
+        .update({ is_active: isActive })
+        .eq("id", id);
+      if (error) return jsonError(error.message, 400);
+      
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: adminId,
+        action: isActive ? "activate_manager" : "deactivate_manager",
+        target_table: "personal_managers",
+        target_id: id,
+      });
+      
+      return jsonSuccess({ success: true });
+    }
+    case "deleteManager": {
+      const { id } = body as { id: string };
+      const { error } = await adminClient
+        .from("personal_managers")
+        .delete()
+        .eq("id", id);
+      if (error) return jsonError(error.message, 400);
+      
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: adminId,
+        action: "delete_manager",
+        target_table: "personal_managers",
+        target_id: id,
+      });
+      
+      return jsonSuccess({ success: true });
+    }
+    case "reassignManager": {
+      const { userId, managerId } = body as { userId: string; managerId: string };
+      
+      // Update the user's profile with the new manager
+      const { error: profileError } = await adminClient
+        .from("profiles")
+        .update({ assigned_manager_id: managerId })
+        .eq("user_id", userId);
+      
+      if (profileError) return jsonError(profileError.message, 400);
+      
+      // Update manager counts
+      // Decrease old manager count (if had one)
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("assigned_manager_id")
+        .eq("user_id", userId)
+        .single();
+      
+      if (profile?.assigned_manager_id && profile.assigned_manager_id !== managerId) {
+        await adminClient.rpc("decrement_manager_count", { manager_id: profile.assigned_manager_id });
+      }
+      
+      // Increase new manager count
+      await adminClient
+        .from("personal_managers")
+        .update({ assigned_count: adminClient.rpc("increment", { x: 1 }) })
+        .eq("id", managerId);
+      
+      await adminClient.from("admin_audit_log").insert({
+        admin_id: adminId,
+        action: "reassign_manager",
+        target_table: "profiles",
+        details: { userId, managerId },
+      });
+      
+      return jsonSuccess({ success: true });
+    }
     default:
       return jsonError("Invalid admin action", 400);
   }
@@ -2125,6 +2296,8 @@ serve(async (req) => {
         return await handleGamification(req, action, body, user.id);
       case "referrals":
         return await handleReferrals(req, action, body, user.id);
+      case "managers":
+        return await handleManagers(req, action, body, user.id);
       case "admin":
         return await handleAdmin(req, action, body, user.id);
       default:

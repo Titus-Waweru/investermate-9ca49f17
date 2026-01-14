@@ -202,6 +202,21 @@ class ApiClient {
       this.request<{ products: Product[] }>("admin", "getAllProducts", {}),
     toggleProduct: (id: string, isActive: boolean) =>
       this.request<{ success: boolean }>("admin", "toggleProduct", { id, isActive }),
+    getAllManagers: () =>
+      this.request<{ managers: PersonalManager[] }>("admin", "getAllManagers", {}),
+    addManager: (name: string, whatsappNumber: string, welcomeMessage?: string) =>
+      this.request<{ success: boolean }>("admin", "addManager", { name, whatsappNumber, welcomeMessage }),
+    toggleManager: (id: string, isActive: boolean) =>
+      this.request<{ success: boolean }>("admin", "toggleManager", { id, isActive }),
+    deleteManager: (id: string) =>
+      this.request<{ success: boolean }>("admin", "deleteManager", { id }),
+    reassignManager: (userId: string, managerId: string) =>
+      this.request<{ success: boolean }>("admin", "reassignManager", { userId, managerId }),
+  };
+
+  // Personal managers endpoints
+  managers = {
+    getAssigned: () => this.request<{ manager: PersonalManager | null }>("managers", "getAssigned", {}),
   };
 }
 
@@ -504,6 +519,19 @@ export interface AdminUser {
   active_investments_count?: number;
   pending_deposits_count?: number;
   pending_withdrawals_count?: number;
+  assigned_manager_id?: string | null;
+  personal_managers?: PersonalManager | null;
+}
+
+export interface PersonalManager {
+  id: string;
+  name: string;
+  whatsapp_number: string;
+  welcome_message: string | null;
+  is_active: boolean;
+  assigned_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export const api = new ApiClient();
