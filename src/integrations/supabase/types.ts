@@ -349,6 +349,39 @@ export type Database = {
         }
         Relationships: []
       }
+      personal_managers: {
+        Row: {
+          assigned_count: number
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          welcome_message: string | null
+          whatsapp_number: string
+        }
+        Insert: {
+          assigned_count?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          welcome_message?: string | null
+          whatsapp_number: string
+        }
+        Update: {
+          assigned_count?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          welcome_message?: string | null
+          whatsapp_number?: string
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           id: string
@@ -429,6 +462,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          assigned_manager_id: string | null
           avatar_url: string | null
           created_at: string
           email: string | null
@@ -438,10 +472,12 @@ export type Database = {
           phone: string | null
           referral_code: string | null
           referred_by: string | null
+          theme_preference: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          assigned_manager_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -451,10 +487,12 @@ export type Database = {
           phone?: string | null
           referral_code?: string | null
           referred_by?: string | null
+          theme_preference?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          assigned_manager_id?: string | null
           avatar_url?: string | null
           created_at?: string
           email?: string | null
@@ -464,10 +502,18 @@ export type Database = {
           phone?: string | null
           referral_code?: string | null
           referred_by?: string | null
+          theme_preference?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_assigned_manager_id_fkey"
+            columns: ["assigned_manager_id"]
+            isOneToOne: false
+            referencedRelation: "personal_managers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_referred_by_fkey"
             columns: ["referred_by"]

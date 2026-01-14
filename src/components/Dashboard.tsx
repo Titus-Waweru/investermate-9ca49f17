@@ -11,6 +11,7 @@ import { EmergencyMessages } from "./EmergencyMessages";
 import { FreezeStatusBanner } from "./FreezeStatusBanner";
 import { ActiveInvestments } from "./ActiveInvestments";
 import { CommunityLink } from "./CommunityLink";
+import { PersonalManagerCard } from "./PersonalManagerCard";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useWallet } from "@/hooks/useWallet";
@@ -77,9 +78,11 @@ export const Dashboard = () => {
 
   const userName = profile?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "Investor";
 
-  // Calculate stats from real data
+  // Calculate stats from real data - Total Invested = only investment amounts
   const activeInvestments = investments?.filter((inv) => inv.status === "active") || [];
-  const totalInvested = activeInvestments.reduce((sum, inv) => sum + Number(inv.amount), 0);
+  const allInvestments = investments || [];
+  // Total invested = sum of ALL investment amounts (active + completed)
+  const totalInvested = allInvestments.reduce((sum, inv) => sum + Number(inv.amount), 0);
   const pendingReturns = activeInvestments.reduce((sum, inv) => sum + (Number(inv.expected_return) - Number(inv.amount)), 0);
 
   // Find next maturity
@@ -256,6 +259,9 @@ export const Dashboard = () => {
 
         {/* Community Groups Link */}
         <CommunityLink />
+
+        {/* Personal Manager */}
+        <PersonalManagerCard />
 
         {/* Active Investments with Countdown */}
         <ActiveInvestments />

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, User } from "lucide-react";
 import { useRecentInvestments } from "@/hooks/useAdmin";
+import { useState, useEffect, useRef } from "react";
 
 // Random Kenyan names for anonymization
 const RANDOM_NAMES = [
@@ -18,11 +19,48 @@ const getRandomName = (index: number) => {
 const maskAmount = (amount: number) => {
   // Add slight variation to make it feel more real
   const variation = Math.floor(Math.random() * 200) - 100;
-  return amount + variation;
+  return Math.max(0, amount + variation);
 };
 
 export const LiveActivityFeed = () => {
   const { data: investments } = useRecentInvestments();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [displayedItems, setDisplayedItems] = useState<any[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-rotate through investments continuously
+  useEffect(() => {
+    if (!investments || investments.length === 0) return;
+
+    // Initialize with first 5 items
+    const initialItems = investments.slice(0, Math.min(5, investments.length));
+    setDisplayedItems(initialItems);
+
+    // Start auto-rotation every 3 seconds
+    intervalRef.current = setInterval(() => {
+      setCurrentIndex((prev) => {
+        const nextIndex = (prev + 1) % investments.length;
+        
+        // Update displayed items with a sliding window effect
+        setDisplayedItems(() => {
+          const newItems = [];
+          for (let i = 0; i < Math.min(5, investments.length); i++) {
+            const idx = (nextIndex + i) % investments.length;
+            newItems.push({ ...investments[idx], displayKey: `${idx}-${Date.now()}` });
+          }
+          return newItems;
+        });
+        
+        return nextIndex;
+      });
+    }, 3000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [investments]);
 
   if (!investments || investments.length === 0) return null;
 
@@ -37,14 +75,19 @@ export const LiveActivityFeed = () => {
       </h2>
 
       <div className="space-y-2 max-h-48 overflow-hidden">
-        <AnimatePresence>
-          {investments.slice(0, 5).map((investment: any, index: number) => (
+        <AnimatePresence mode="popLayout">
+          {displayedItems.map((investment: any, index: number) => (
             <motion.div
-              key={investment.created_at + index}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              transition={{ delay: index * 0.1 }}
+              key={investment.displayKey || `${investment.created_at}-${index}`}
+              initial={{ opacity: 0, x: -20, height: 0 }}
+              animate={{ opacity: 1, x: 0, height: "auto" }}
+              exit={{ opacity: 0, x: 20, height: 0 }}
+              transition={{ 
+                duration: 0.4, 
+                delay: index * 0.05,
+                ease: "easeOut"
+              }}
+              layout
               className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50"
             >
               <div className="flex items-center gap-3">
@@ -52,7 +95,7 @@ export const LiveActivityFeed = () => {
                   <User className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{getRandomName(index)}</p>
+                  <p className="text-sm font-medium">{getRandomName((currentIndex + index) % RANDOM_NAMES.length)}</p>
                   <p className="text-xs text-muted-foreground">
                     Invested in {investment.products?.name || "Product"}
                   </p>
@@ -71,7 +114,7 @@ export const LiveActivityFeed = () => {
       </div>
 
       <p className="text-xs text-center text-muted-foreground">
-        Real-time investment activity • Updated every 30 seconds
+        Real-time investment activity • Auto-updating
       </p>
     </section>
   );
