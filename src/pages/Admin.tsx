@@ -211,31 +211,53 @@ export default function Admin() {
 
   const { user, loading: authLoading } = useAuth();
 
-  // Log unauthorized admin access attempt
+  // Log unauthorized admin access attempt and force logout
   useEffect(() => {
     if (!isAdmin && !checkingAdmin && !authLoading && user) {
-      const logUnauthorizedAccess = async () => {
+      const handleUnauthorizedAccess = async () => {
         try {
+          // Get user profile details for logging
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, email, phone')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          // Log with HIGH severity - this is a security threat
           await supabase.from('suspicious_activities').insert({
             user_id: user.id,
-            action: 'unauthorized_admin_access',
-            severity: 'medium',
+            action: 'CRITICAL: Unauthorized Admin Access Attempt',
+            severity: 'high',
             details: {
               attempted_route: '/admin',
               timestamp: new Date().toISOString(),
+              user_email: user.email || profile?.email || 'Unknown',
+              user_name: profile?.full_name || 'Unknown',
+              user_phone: profile?.phone || 'Unknown',
+              threat_type: 'privilege_escalation_attempt',
+              action_taken: 'forced_logout',
+              security_alert: true,
             },
             ip_address: null,
             user_agent: navigator.userAgent,
             browser: navigator.userAgent.includes('Chrome') ? 'Chrome' : 
                      navigator.userAgent.includes('Firefox') ? 'Firefox' : 
-                     navigator.userAgent.includes('Safari') ? 'Safari' : 'Other',
-            device: /Mobile|Android|iPhone/.test(navigator.userAgent) ? 'Mobile' : 'Desktop',
+                     navigator.userAgent.includes('Safari') ? 'Safari' : 
+                     navigator.userAgent.includes('Edge') ? 'Edge' : 'Other',
+            device: /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 'Mobile' : 'Desktop',
+            location: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Unknown',
           });
+
+          // Force logout the user immediately for security
+          await supabase.auth.signOut();
+          
         } catch (error) {
           console.error('Failed to log unauthorized access:', error);
+          // Still try to log out even if logging fails
+          await supabase.auth.signOut();
         }
       };
-      logUnauthorizedAccess();
+      handleUnauthorizedAccess();
     }
   }, [isAdmin, checkingAdmin, authLoading, user]);
 
@@ -255,46 +277,59 @@ export default function Admin() {
           animate={{ opacity: 1, scale: 1 }}
           className="max-w-md w-full"
         >
-          <div className="glass-card p-8 text-center space-y-6">
-            {/* Warning Icon */}
-            <div className="mx-auto w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
-              <Shield className="w-10 h-10 text-destructive" />
-            </div>
+          <div className="glass-card p-8 text-center space-y-6 border-2 border-destructive/50">
+            {/* Warning Icon with animation */}
+            <motion.div 
+              className="mx-auto w-24 h-24 rounded-full bg-destructive/20 flex items-center justify-center"
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <AlertOctagon className="w-12 h-12 text-destructive" />
+            </motion.div>
             
             {/* Warning Message */}
             <div className="space-y-2">
               <h1 className="text-2xl font-display font-bold text-destructive">
-                Access Denied
+                ⚠️ Security Violation ⚠️
               </h1>
               <p className="text-muted-foreground">
-                You are not authorized to access the admin dashboard.
+                Unauthorized access attempt has been detected and logged.
               </p>
             </div>
 
-            {/* Details */}
-            <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-4 text-left space-y-2">
+            {/* Severe Warning */}
+            <div className="bg-destructive/10 border-2 border-destructive/30 rounded-xl p-4 text-left space-y-3">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-destructive mt-0.5 shrink-0" />
-                <div className="text-sm">
-                  <p className="font-medium text-destructive">Admin Role Required</p>
-                  <p className="text-muted-foreground mt-1">
-                    Your account has not been assigned admin privileges. If you believe this is an error, please contact the platform administrator.
+                <Shield className="w-6 h-6 text-destructive mt-0.5 shrink-0" />
+                <div className="text-sm space-y-2">
+                  <p className="font-bold text-destructive">Admin Access Required</p>
+                  <p className="text-muted-foreground">
+                    Your account is <span className="font-bold text-destructive">NOT authorized</span> to access the admin dashboard.
                   </p>
+                  <div className="p-2 bg-background/50 rounded border border-destructive/20 text-xs">
+                    <p className="font-medium text-destructive">This incident has been recorded:</p>
+                    <ul className="list-disc list-inside mt-1 text-muted-foreground space-y-0.5">
+                      <li>Your IP address has been logged</li>
+                      <li>Device fingerprint captured</li>
+                      <li>Account flagged for review</li>
+                      <li>You have been logged out</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Action Button */}
-            <Link to="/">
-              <Button className="w-full" size="lg">
+            <Link to="/auth">
+              <Button className="w-full" size="lg" variant="destructive">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Return to Dashboard
+                Return to Login
               </Button>
             </Link>
 
             {/* Support Note */}
             <p className="text-xs text-muted-foreground">
-              Need admin access? Contact your personal manager or support team.
+              If you believe this is an error, contact the platform administrator immediately.
             </p>
           </div>
         </motion.div>
@@ -1937,37 +1972,86 @@ export default function Admin() {
             {suspiciousActivities?.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">No suspicious activities detected</p>
             ) : (
-              suspiciousActivities?.map((activity: any) => (
-                <div key={activity.id} className={`glass-card p-4 ${activity.resolved ? 'opacity-50' : ''} ${activity.severity === 'high' || activity.severity === 'critical' ? 'border-destructive/50' : ''}`}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant={activity.severity === 'high' || activity.severity === 'critical' ? 'destructive' : activity.severity === 'medium' ? 'secondary' : 'outline'}>
-                          {activity.severity}
-                        </Badge>
-                        <span className="font-medium">{activity.action}</span>
-                        {activity.resolved && <Badge variant="outline">Resolved</Badge>}
+              suspiciousActivities?.map((activity: any) => {
+                const details = activity.details as Record<string, unknown> | null;
+                const isSecurityAlert = details?.security_alert === true;
+                const userEmail = details?.user_email as string | undefined;
+                const userName = details?.user_name as string | undefined;
+                const userPhone = details?.user_phone as string | undefined;
+                const threatType = details?.threat_type as string | undefined;
+                const actionTaken = details?.action_taken as string | undefined;
+                
+                return (
+                  <div 
+                    key={activity.id} 
+                    className={`glass-card p-4 ${activity.resolved ? 'opacity-50' : ''} ${
+                      activity.severity === 'high' || activity.severity === 'critical' 
+                        ? 'border-2 border-destructive/70 bg-destructive/5' 
+                        : activity.severity === 'medium' 
+                          ? 'border-amber-500/50' 
+                          : ''
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 space-y-2">
+                        {/* Header with severity and action */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge 
+                            variant={activity.severity === 'high' || activity.severity === 'critical' ? 'destructive' : activity.severity === 'medium' ? 'secondary' : 'outline'}
+                            className={activity.severity === 'high' || activity.severity === 'critical' ? 'animate-pulse' : ''}
+                          >
+                            {activity.severity === 'high' ? '🚨 HIGH' : activity.severity === 'critical' ? '⚠️ CRITICAL' : activity.severity.toUpperCase()}
+                          </Badge>
+                          {isSecurityAlert && (
+                            <Badge variant="destructive" className="gap-1">
+                              <AlertOctagon className="w-3 h-3" />
+                              Security Alert
+                            </Badge>
+                          )}
+                          {activity.resolved && <Badge variant="outline">Resolved</Badge>}
+                        </div>
+                        
+                        {/* Action description */}
+                        <p className="font-semibold text-sm">{activity.action}</p>
+                        
+                        {/* User details if available */}
+                        {(userEmail || userName || userPhone) && (
+                          <div className="p-2 rounded-lg bg-destructive/10 border border-destructive/20 text-xs space-y-1">
+                            <p className="font-semibold text-destructive flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              Flagged User:
+                            </p>
+                            {userName && <p>Name: <span className="font-medium">{userName}</span></p>}
+                            {userEmail && <p>Email: <span className="font-medium">{userEmail}</span></p>}
+                            {userPhone && <p>Phone: <span className="font-medium">{userPhone}</span></p>}
+                            {threatType && <p>Threat: <span className="font-medium text-destructive">{threatType.replace(/_/g, ' ')}</span></p>}
+                            {actionTaken && <p>Action Taken: <span className="font-medium">{actionTaken.replace(/_/g, ' ')}</span></p>}
+                          </div>
+                        )}
+                        
+                        {/* Technical details */}
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <p><Globe className="w-3 h-3 inline mr-1" />IP: {activity.ip_address || 'Unknown'}</p>
+                          <p><Monitor className="w-3 h-3 inline mr-1" />{activity.browser} / {activity.device}</p>
+                          {activity.location && <p>Timezone: {activity.location}</p>}
+                          <p>{formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}</p>
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <p><Globe className="w-3 h-3 inline mr-1" />IP: {activity.ip_address || 'Unknown'}</p>
-                        <p><Monitor className="w-3 h-3 inline mr-1" />{activity.browser} / {activity.device}</p>
-                        <p>{formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}</p>
-                      </div>
+                      {!activity.resolved && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => resolveActivity.mutate({ id: activity.id })}
+                          disabled={resolveActivity.isPending}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          Resolve
+                        </Button>
+                      )}
                     </div>
-                    {!activity.resolved && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => resolveActivity.mutate({ id: activity.id })}
-                        disabled={resolveActivity.isPending}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Resolve
-                      </Button>
-                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </TabsContent>
 
