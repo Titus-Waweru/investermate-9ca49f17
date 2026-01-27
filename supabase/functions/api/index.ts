@@ -274,6 +274,15 @@ async function handleAuth(
       
       // Reset rate limit on successful login
       resetRateLimit(clientInfo.ipAddress);
+      
+      // Update last login time for engagement tracking
+      if (data.user) {
+        await adminClient
+          .from("profiles")
+          .update({ last_login_at: new Date().toISOString() })
+          .eq("user_id", data.user.id);
+      }
+      
       return jsonSuccess({ user: data.user, session: data.session });
     }
     case "signOut": {
@@ -842,6 +851,91 @@ async function handleInvestments(
         .limit(20);
       if (error) return jsonError(error.message, 400);
       return jsonSuccess({ investments: data });
+    }
+    case "mature": {
+      // Process matured investments - add returns to wallet
+      const { investmentIds } = body as { investmentIds: string[] };
+      
+      if (!investmentIds || investmentIds.length === 0) {
+        return jsonError("No investment IDs provided", 400);
+      }
+      
+      // Get the investments that need to be matured
+      const { data: investmentsToMature, error: fetchError } = await adminClient
+        .from("investments")
+        .select("*, products(name)")
+        .in("id", investmentIds)
+        .eq("user_id", userId)
+        .eq("status", "active");
+      
+      if (fetchError) return jsonError(fetchError.message, 400);
+      if (!investmentsToMature || investmentsToMature.length === 0) {
+        return jsonError("No valid investments found", 400);
+      }
+      
+      // Verify all investments are actually matured
+      const now = new Date();
+      const maturedInvestments = investmentsToMature.filter(
+        inv => new Date(inv.matures_at) <= now
+      );
+      
+      if (maturedInvestments.length === 0) {
+        return jsonError("No matured investments found", 400);
+      }
+      
+      // Get current wallet
+      const { data: wallet, error: walletError } = await adminClient
+        .from("wallets")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+      
+      if (walletError) return jsonError("Wallet not found", 400);
+      
+      // Calculate totals
+      let totalReturns = 0;
+      let totalPendingDeduction = 0;
+      let totalTotalReturnsAdd = 0;
+      
+      for (const inv of maturedInvestments) {
+        totalReturns += Number(inv.expected_return);
+        totalPendingDeduction += Number(inv.expected_return) - Number(inv.amount);
+        totalTotalReturnsAdd += Number(inv.expected_return) - Number(inv.amount);
+      }
+      
+      // Update wallet - add returns to balance, move from pending_returns to total_returns
+      await adminClient
+        .from("wallets")
+        .update({
+          balance: Number(wallet.balance) + totalReturns,
+          pending_returns: Math.max(0, Number(wallet.pending_returns) - totalPendingDeduction),
+          total_returns: Number(wallet.total_returns) + totalTotalReturnsAdd,
+        })
+        .eq("user_id", userId);
+      
+      // Update investments to "matured" status
+      await adminClient
+        .from("investments")
+        .update({ status: "matured" })
+        .in("id", maturedInvestments.map(inv => inv.id));
+      
+      // Create transaction records for each matured investment
+      for (const inv of maturedInvestments) {
+        await adminClient.from("transactions").insert({
+          user_id: userId,
+          type: "investment_return",
+          amount: Number(inv.expected_return),
+          description: `Investment matured: ${inv.products?.name || "Product"} - Returns received`,
+          status: "completed",
+          reference_id: inv.id,
+        });
+      }
+      
+      return jsonSuccess({ 
+        success: true, 
+        maturedCount: maturedInvestments.length,
+        totalReturns,
+      });
     }
     default:
       return jsonError("Invalid investments action", 400);

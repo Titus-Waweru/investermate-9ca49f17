@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { AlertTriangle, TrendingDown, TrendingUp, Users, AlertCircle, DollarSign } from "lucide-react";
+import { AlertTriangle, TrendingDown, TrendingUp, Users, AlertCircle, DollarSign, Activity, Clock } from "lucide-react";
 import { 
   BarChart, 
   Bar, 
@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { usePendingDeposits, usePendingWithdrawals, useAllUsers } from "@/hooks/useAdmin";
 import { useMemo } from "react";
 import { subDays, format, parseISO, startOfDay } from "date-fns";
@@ -115,6 +116,44 @@ export const AdminAnalytics = () => {
     ].filter((d) => d.value > 0);
   }, [withdrawals]);
 
+  // Calculate engagement statistics
+  const engagementStats = useMemo(() => {
+    const now = new Date();
+    const sevenDaysAgo = subDays(now, 7);
+    const thirtyDaysAgo = subDays(now, 30);
+    
+    const totalUsers = users?.length || 0;
+    
+    // Active in last 7 days
+    const activeLastWeek = users?.filter(u => 
+      u.last_login_at && new Date(u.last_login_at) >= sevenDaysAgo
+    ).length || 0;
+    
+    // Active in last 30 days
+    const activeLastMonth = users?.filter(u => 
+      u.last_login_at && new Date(u.last_login_at) >= thirtyDaysAgo
+    ).length || 0;
+    
+    // Never logged in (registered but never came back)
+    const neverLoggedIn = users?.filter(u => !u.last_login_at).length || 0;
+    
+    // Users with active investments
+    const withActiveInvestments = users?.filter(u => 
+      (u.active_investments_count || 0) > 0
+    ).length || 0;
+    
+    return {
+      totalUsers,
+      activeLastWeek,
+      activeLastMonth,
+      neverLoggedIn,
+      withActiveInvestments,
+      weeklyEngagementRate: totalUsers > 0 ? (activeLastWeek / totalUsers) * 100 : 0,
+      monthlyEngagementRate: totalUsers > 0 ? (activeLastMonth / totalUsers) * 100 : 0,
+      investorRate: totalUsers > 0 ? (withActiveInvestments / totalUsers) * 100 : 0,
+    };
+  }, [users]);
+
   // Generate critical alerts
   const criticalAlerts = useMemo(() => {
     const alerts: CriticalAlert[] = [];
@@ -185,11 +224,101 @@ export const AdminAnalytics = () => {
 
   return (
     <div className="space-y-6">
+      {/* Engagement Stats Cards */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+      >
+        <Card className="bg-card/50 backdrop-blur">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+              <Users className="w-4 h-4" />
+              Total Users
+            </div>
+            <p className="text-2xl font-bold">{engagementStats.totalUsers}</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-card/50 backdrop-blur">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+              <Activity className="w-4 h-4 text-profit" />
+              Weekly Active
+            </div>
+            <p className="text-2xl font-bold text-profit">{engagementStats.activeLastWeek}</p>
+            <p className="text-xs text-muted-foreground">{engagementStats.weeklyEngagementRate.toFixed(1)}% engagement</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-card/50 backdrop-blur">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+              <TrendingUp className="w-4 h-4 text-trust" />
+              Active Investors
+            </div>
+            <p className="text-2xl font-bold text-trust">{engagementStats.withActiveInvestments}</p>
+            <p className="text-xs text-muted-foreground">{engagementStats.investorRate.toFixed(1)}% of users</p>
+          </CardContent>
+        </Card>
+        
+        <Card className="bg-card/50 backdrop-blur">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+              <Clock className="w-4 h-4 text-orange-500" />
+              Never Logged In
+            </div>
+            <p className="text-2xl font-bold text-orange-500">{engagementStats.neverLoggedIn}</p>
+            <p className="text-xs text-muted-foreground">Need re-engagement</p>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Engagement Progress Bars */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+      >
+        <Card className="bg-card/50 backdrop-blur">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Activity className="w-5 h-5 text-primary" />
+              User Engagement Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Weekly Engagement (7 days)</span>
+                <span className="font-medium text-profit">{engagementStats.weeklyEngagementRate.toFixed(1)}%</span>
+              </div>
+              <Progress value={engagementStats.weeklyEngagementRate} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Monthly Engagement (30 days)</span>
+                <span className="font-medium text-trust">{engagementStats.monthlyEngagementRate.toFixed(1)}%</span>
+              </div>
+              <Progress value={engagementStats.monthlyEngagementRate} className="h-2" />
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Investor Rate</span>
+                <span className="font-medium text-primary">{engagementStats.investorRate.toFixed(1)}%</span>
+              </div>
+              <Progress value={engagementStats.investorRate} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Critical Alerts */}
       {criticalAlerts.length > 0 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
           className="space-y-3"
         >
           <h3 className="font-semibold flex items-center gap-2">
