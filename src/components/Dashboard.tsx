@@ -20,6 +20,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useNotices } from "@/hooks/useNotices";
 import { useInvestments } from "@/hooks/useInvestments";
 import { useUserStreak, useUserLevel, useUpdateStreak, useClaimStreakReward } from "@/hooks/useGamification";
+import { useInvestmentMaturation } from "@/hooks/useInvestmentMaturation";
 import { Skeleton } from "./ui/skeleton";
 import { Button } from "./ui/button";
 import { formatDistanceToNow } from "date-fns";
@@ -41,6 +42,9 @@ export const Dashboard = () => {
   const { mutate: updateStreak } = useUpdateStreak();
   const { mutate: claimStreakReward } = useClaimStreakReward();
   const { toast } = useToast();
+  
+  // Investment maturation - automatically checks and processes matured investments
+  useInvestmentMaturation();
 
   // Update streak, process pending referral, and welcome bonus on dashboard load
   useEffect(() => {

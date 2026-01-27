@@ -7,7 +7,7 @@ import {
   Newspaper, Bell, PauseCircle, PlayCircle, Image, Upload,
   Trash2, Award, ChevronLeft, ChevronRight, Timer, Megaphone,
   MessageCircle, RefreshCw, Eye, AlertOctagon, Globe, Monitor,
-  Package, UserCog, Camera, Settings, PieChart
+  Package, UserCog, Camera, Settings, PieChart, Clock, Activity
 } from "lucide-react";
 import { Link, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -357,6 +357,15 @@ export default function Admin() {
   const totalFilteredUsers = filteredUsers?.length || 0;
   const paginatedUsers = filteredUsers?.slice(userPage * USERS_PER_PAGE, (userPage + 1) * USERS_PER_PAGE);
   const totalPages = Math.ceil(totalFilteredUsers / USERS_PER_PAGE);
+
+  // Calculate engagement rate - users who logged in within last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const activeUsersLast7Days = users?.filter(u => 
+    u.last_login_at && new Date(u.last_login_at) >= sevenDaysAgo
+  ).length || 0;
+  const totalUsersCount = users?.length || 0;
+  const engagementRate = totalUsersCount > 0 ? (activeUsersLast7Days / totalUsersCount) * 100 : 0;
 
   const handleApproveDeposit = async (id: string, approve: boolean) => {
     try {
@@ -1125,6 +1134,28 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-4">
+            {/* Engagement Summary */}
+            <div className="glass-card p-4 flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                <span className="font-medium">User Engagement</span>
+              </div>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Active (7d):</span>
+                  <span className="font-bold text-profit">{activeUsersLast7Days}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Rate:</span>
+                  <span className="font-bold text-trust">{engagementRate.toFixed(1)}%</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Total:</span>
+                  <span className="font-bold">{totalUsersCount}</span>
+                </div>
+              </div>
+            </div>
+            
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -1149,6 +1180,21 @@ export default function Admin() {
                     </div>
                     <p className="text-sm text-muted-foreground truncate">{user.email}</p>
                     <p className="text-xs text-muted-foreground">{user.phone || "No phone"}</p>
+                    
+                    {/* Last Login Engagement */}
+                    <div className="mt-1">
+                      {user.last_login_at ? (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Last login: {formatDistanceToNow(new Date(user.last_login_at), { addSuffix: true })}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-orange-500 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          Never logged in
+                        </p>
+                      )}
+                    </div>
                     
                     <div className="flex flex-wrap gap-2 mt-2">
                       <span className="text-xs px-2 py-0.5 rounded-full bg-primary/20 text-primary">

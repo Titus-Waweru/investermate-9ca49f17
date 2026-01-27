@@ -102,6 +102,8 @@ class ApiClient {
     create: (data: { productId: string; amount: number; expectedReturn: number; maturesAt: string }) =>
       this.request<{ investment: Investment }>("investments", "create", data),
     recent: () => this.request<{ investments: RecentInvestment[] }>("investments", "recent", {}),
+    mature: (investmentIds: string[]) =>
+      this.request<{ success: boolean; maturedCount: number; totalReturns: number }>("investments", "mature", { investmentIds }),
   };
 
   // Public endpoints
@@ -520,6 +522,7 @@ export interface AdminUser {
   hide_balance: boolean;
   created_at: string;
   updated_at: string;
+  last_login_at: string | null;
   wallets?: { balance: number; total_invested: number; total_returns: number }[];
   user_roles?: { role: string }[];
   user_levels?: { current_level: number; level_title: string; total_xp: number }[];

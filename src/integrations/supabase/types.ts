@@ -532,6 +532,7 @@ export type Database = {
           full_name: string | null
           hide_balance: boolean | null
           id: string
+          last_login_at: string | null
           phone: string | null
           referral_code: string | null
           referred_by: string | null
@@ -547,6 +548,7 @@ export type Database = {
           full_name?: string | null
           hide_balance?: boolean | null
           id?: string
+          last_login_at?: string | null
           phone?: string | null
           referral_code?: string | null
           referred_by?: string | null
@@ -562,6 +564,7 @@ export type Database = {
           full_name?: string | null
           hide_balance?: boolean | null
           id?: string
+          last_login_at?: string | null
           phone?: string | null
           referral_code?: string | null
           referred_by?: string | null
